@@ -10,17 +10,22 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    def image = docker.build("architecture_image:${env.BUILD_ID}")
+                    def image = docker.build("architecture_image:${BUILD_NUMBER}")
                 }
             }
         }
         stage('Deploy') {
             steps {
                 script {
-                    sh 'docker stop architecture_container  true'
-                    sh 'docker rm architecture_container  true'
-                    // Используем упрощенную команду без подстановок bash
-                    sh "docker run -d --name architecture_container -p 8081:8080 architecture_image:${env.BUILD_ID}"
+                    // Проверяем, существует ли контейнер, и останавливаем его
+                    sh '''
+                    if docker ps -a --format '{{.Names}}' | grep -q '^architecture_container$'; then
+                        docker stop architecture_container || true
+                        docker rm architecture_container || true
+                    fi
+                    '''
+                    // Запускаем новый контейнер
+                    sh "docker run -d --name architecture_container -p 8081:8080 architecture_image:${BUILD_NUMBER}"
                 }
             }
         }
@@ -28,6 +33,7 @@ pipeline {
     post {
         always {
             script {
+                // Очищаем неиспользуемые образы
                 sh 'docker image prune -f'
             }
         }
